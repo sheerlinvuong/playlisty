@@ -1,65 +1,92 @@
 import React, { Component } from 'react';
-import { Text, View, Button, StyleSheet } from 'react-native';
-import t from 'tcomb-form-native';
-// Form
-const Form = t.form.Form;
-
-// Form model
-const User = t.struct({
-  email: t.String,
-  //username: t.maybe(t.String),
-  password: t.String,
-  //terms: t.Boolean,
-});
-const options = {
-  fields: {
-    email: {
-      autoCapitalize: 'none',
-      error: ' cannot reset pw without email',
-    },
-    password: {
-      error: 'Choose again',
-      secureTextEntry: true,
-    },
-    // terms: {
-    //   label: 'Agree to Terms',
-    // },
-  },
-};
-
-const axios = require('axios');
+import { Text, View, Button, StyleSheet, Linking } from 'react-native';
+import { AuthSession, WebBrowser } from 'expo';
+import Expo from 'expo';
+import { FB_APP_ID } from 'react-native-dotenv';
 
 export default class LoginScreen extends Component {
   state = {
     user: {},
+    result: null,
   };
 
-  handleSubmit = () => {
-    const value = this.loginform.getValue();
-    console.log('value: ', value);
-    console.log(Object.keys(value));
-    axios
-      .post('http://localhost:3000/signup', {
-        ...value,
-      })
-      .then(response => {
-        console.log('User added!');
-      })
-      .catch(err => {
-        console.error(err);
-        console.log(err, 'User not added, try again!');
-      });
+  handleLogout = async () => {
+    let result = await AuthSession.dismiss();
+    this.setState({ result });
+    console.log(this.state.result);
+  };
+  handleLogin = async () => {
+    let redirectUrl = AuthSession.getRedirectUrl();
+    let result = await AuthSession.startAsync({
+      authUrl:
+        `https://www.facebook.com/v3.1/dialog/oauth?response_type=token` +
+        `&client_id=${FB_APP_ID}` +
+        `&redirect_uri=${encodeURIComponent(redirectUrl)}`,
+    });
+    this.setState({ result });
+    console.log(result);
+    console.log(result.type);
+    console.log(result.errorCode);
+
+    // WebBrowser.openBrowserAsync('https://sheerlin.netlify.com/');
+    console.log(result.params.expires_in);
+
+    Expo.SecureStore.setItemAsync(userToken, result.params.access_token);
+    Expo.SecureStore.setItemAsync(userToken, result.params.expires_in);
+  };
+
+  handleSignup = async () => {
+    let redirectUrl = AuthSession.getRedirectUrl();
+    let result = await AuthSession.startAsync({
+      authUrl:
+        `https://www.facebook.com/v3.1/dialog/oauth?response_type=token` +
+        `&client_id=${FB_APP_ID}` +
+        `&redirect_uri=${encodeURIComponent(redirectUrl)}`,
+    });
+    this.setState({ result });
+    console.log(result);
+    console.log(result.type);
+    console.log(result.errorCode);
+
+    // WebBrowser.openBrowserAsync('https://sheerlin.netlify.com/');
+    console.log(result.params.access_token);
+    console.log(result.params.expires_in);
+
+    Expo.SecureStore.setItemAsync('userToken', 'result.params.access_token');
+    Expo.SecureStore.setItemAsync('expiresIn', 'result.params.expires_in');
+
+    if (result.type === 'success') {
+      // Get the user's name using Facebook's Graph API
+      const response = await fetch(
+        `https://graph.facebook.com/me?access_token=${
+          result.params.access_token
+        }&fields=id,name,picture.type(large)`,
+      );
+      // const { picture, name } = await response.json();
+
+      console.log(await response.json());
+      //console.log('Logged in!', `Hi ${(await response.json()).id}!`);
+    }
   };
 
   render() {
     return (
       <View style={styles.container}>
         <Text style={styles.Title}>Playlisty</Text>
-        <Form ref={c => (this.loginform = c)} type={User} />
         <Button
           style={styles.button}
           title="Log In"
-          onPress={this.handleSubmit}
+          onPress={this.handleLogin}
+        />
+        <Button
+          style={styles.button}
+          title="Sign Up With Facebook"
+          onPress={this.handleSignup}
+        />
+        <Button
+          style={styles.button}
+          title="Log Out"
+          onPress={this.handleLogout}
         />
       </View>
     );
@@ -79,7 +106,6 @@ const styles = StyleSheet.create({
     width: 149,
     height: 81,
     backgroundColor: 'red',
-    fontFamily: 'montserrat',
   },
   button: {
     height: 36,
